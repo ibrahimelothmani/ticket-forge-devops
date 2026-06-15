@@ -1,0 +1,102 @@
+version: '3.8'
+
+name: ticketforge-infra
+
+networks:
+  ticketforge-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  kafka_data:
+    driver: local
+
+services:
+
+  # 1. Database: PostgreSQL (For Ticket Service Transactions)
+  postgres:
+    image: postgres:latest
+    container_name: tf-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ticket_user
+      POSTGRES_PASSWORD: ticket_password_2026
+      POSTGRES_DB: ticketforge_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ticketforge-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticket_user -d ticketforge_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Cache & Distributed Lock: Redis
+  redis:
+    image: redis:7-alpine
+    container_name: tf-redis
+    restart: always
+    command: redis-server --appendonly yes --requirepass redis_password_2026
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ticketforge-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_password_2026", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. Message Broker: Apache Kafka (KRaft Mode - No Zookeeper needed!)
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: tf-kafka
+    restart: always
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - ticketforge-net
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFERS_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 4. Kafka UI: For Visual Monitoring of Topics and Events
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: tf-kafka-ui
+    restart: always
+    ports:
+      - "8080:8080"
+    networks:
+      - ticketforge-net
+    environment:
+      DYNAMIC_CONFIG_ENABLED: 'true'
+      KAFKA_CLUSTERS_0_NAME: 'ticketforge-cluster'
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: 'kafka:29092'
+    depends_on:
+      kafka:
+        condition: service_healthy
