@@ -1,0 +1,36 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: api-gateway
+
+  # إعدادات الاتصال بـ Redis (الذي أطلقناه في الـ docker-compose وحميناه بـ password)
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ticket2026
+
+  cloud:
+    gateway:
+      routes:
+        # 1. توجيه الطلبات الخاصة بـ Ticket Service
+        - id: ticket-service-route
+          uri: http://localhost:8081    # السيرفيس الأساسي باش يخدم على بورت 8081 محليًا
+          predicates:
+            - Path=/api/v1/tickets/**, /api/v1/matches/**
+          filters:
+            # هوني السحر! نحددوا الـ Rate Limiter باستعمال Redis
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10     # كم من Request مسموح بها في الثانية لكل مستخدم
+                redis-rate-limiter.burstCapacity: 20     # أقصى عدد طلبات مفاجئة يمكن تحملها في ثانية واحدة
+                key-resolver: "#{@userKeyResolver}"     # الـ Bean اللي عملناه بالـ IP في كود الجافا
+
+# تفعيل الـ Actuator لمراقبة الـ Health Check الخاصة بالـ Gateway من طرف الـ DevOps لاحقاً
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
