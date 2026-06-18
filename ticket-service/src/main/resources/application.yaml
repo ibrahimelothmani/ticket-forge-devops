@@ -1,0 +1,34 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: ticket-service
+
+  # 1. إعدادات الـ Database (PostgreSQL)
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ticketforge_db
+    username: ticket_user
+    password: ticket_password_2026
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update # لإنشاء الجداول تلقائياً في مرحلة التطوير
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # 2. إعدادات الـ Distributed Cache (Redis)
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: redis_password_2026
+
+  # 3. إعدادات الـ Message Broker (Apache Kafka Producer)
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
