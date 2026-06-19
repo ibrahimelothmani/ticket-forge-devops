@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: ticket-service
+  threads:
+    virtual:
+      enabled: true
 
   # 1. إعدادات الـ Database (PostgreSQL)
   datasource:

@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: api-gateway
+  threads:
+    virtual:
+      enabled: true
 
   # إعدادات الاتصال بـ Redis (الذي أطلقناه في الـ docker-compose وحميناه بـ password)
   data:
