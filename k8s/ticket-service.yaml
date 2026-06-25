@@ -1,0 +1,64 @@
+---
+# 1. Deployment: مسؤول عن تشغيل الحاويات ومراقبتها
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ticket-service-deployment
+  namespace: future-eagle-prod
+  labels:
+    app: ticket-service
+spec:
+  replicas: 2 # نشغل نسختين لتوزيع الحمل (Load Balancing)
+  selector:
+    matchLabels:
+      app: ticket-service
+  template:
+    metadata:
+      labels:
+        app: ticket-service
+    spec:
+      containers:
+      - name: ticket-service
+        image: future-eagle-iot/ticket-service:latest # الصورة التي بناها الـ CI Pipeline
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8081
+        # إضافة معايير الـ Cloud-Native (Resource Management)
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # حقن إعدادات الاتصال عبر الـ Environment Variables
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:postgresql://postgres-service:5432/ticketforge_db"
+        - name: SPRING_DATA_REDIS_HOST
+          value: "redis-service"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-service:9092"
+        # فحص صحة التطبيق (Health Probe)
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+# 2. Service: مسؤول عن إعطاء IP داخلي ثابت للـ Pods
+apiVersion: v1
+kind: Service
+metadata:
+  name: ticket-service
+  namespace: future-eagle-prod
+spec:
+  selector:
+    app: ticket-service
+  ports:
+    - protocol: TCP
+      port: 8081
+      targetPort: 8081
+  type: ClusterIP # السيرفيس مرئي فقط داخل الـ Cluster وليس للإنترنت مباشرة
