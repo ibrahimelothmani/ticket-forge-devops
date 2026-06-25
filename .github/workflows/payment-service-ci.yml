@@ -2,11 +2,11 @@ name: Payment Service DevSecOps CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
     paths:
       - 'payment-service/**' # يشتغل فقط إذا لمسنا كود الدفع
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
     paths:
       - 'payment-service/**'
 

@@ -3,13 +3,13 @@ name: Ticket Service DevSecOps CI
 # متى يشتغل هذا الـ Pipeline؟
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
     # هذه النقطة مهمة جداً في الـ Monorepo:
     # الـ Pipeline يشتغل فقط إذا صار تعديل داخل مجلد ticket-service
     paths:
       - 'ticket-service/**'
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
     paths:
       - 'ticket-service/**'
 
