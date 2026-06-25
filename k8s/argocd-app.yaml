@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ticketforge-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    # ضع هنا رابط مستودع GitHub الخاص بك
+    repoURL: 'https://github.com/ibrahimelothmani/ticket-forge-devops.git'
+    targetRevision: main
+    # المجلد الذي يحتوي على ملفات K8s
+    path: k8s
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: future-eagle-prod
+  # تفعيل الـ Sync الآلي
+  syncPolicy:
+    automated:
+      prune: true     # حذف الموارد إذا حذفت من GitHub
+      selfHeal: true  # إعادة تطبيق الإعدادات إذا تم تعديل الكلاستر يدوياً بالخطأ
+    syncOptions:
+      - CreateNamespace=true # إنشاء الـ Namespace آلياً إذا لم يكن موجوداً
