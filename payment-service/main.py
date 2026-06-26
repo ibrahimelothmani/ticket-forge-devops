@@ -3,7 +3,9 @@ import json
 import logging
 from fastapi import FastAPI
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from prometheus_fastapi_instrumentator import Instrumentator
 
+    
 # إعداد الـ Logging لمراقبة العمليات من طرف الـ DevOps
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("PaymentService")
@@ -16,6 +18,13 @@ CONSUME_TOPIC = "ticket.reserved"
 PRODUCER_CONFIRMED_TOPIC = "payment.confirmed"
 PRODUCER_FAILED_TOPIC = "payment.failed"
 
+
+@app.on_event("startup")
+async def startup_event():
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+    logger.info("🚀 Prometheus metrics endpoint is now available at /metrics")
+
+    
 async def consume_ticket_reservations():
     """
     Background worker للاستماع للأحداث القادمة من ticket-service
