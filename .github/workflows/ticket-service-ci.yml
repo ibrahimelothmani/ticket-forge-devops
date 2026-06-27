@@ -1,29 +1,25 @@
-name: Ticket Service DevSecOps CI
+name: Ticket Service Production AWS CI
 
-# متى يشتغل هذا الـ Pipeline؟
 on:
   push:
-    branches: [ "master" ]
-    # هذه النقطة مهمة جداً في الـ Monorepo:
-    # الـ Pipeline يشتغل فقط إذا صار تعديل داخل مجلد ticket-service
+    branches: [ "main" ]
     paths:
       - 'ticket-service/**'
-  pull_request:
-    branches: [ "master" ]
-    paths:
-      - 'ticket-service/**'
+
+# تفعيل الصلاحيات اللازمة لعمل الـ OIDC Authentication مع AWS بأمان
+permissions:
+  id-token: write
+  contents: read
 
 env:
-  # اسم الصورة التي سيتم رفعها لـ Docker Hub (غيّر ibrahim-devops باسم حسابك في DockerHub)
-  IMAGE_NAME: ibrahim-devops/ticket-service
-  # استعمال الـ Commit Hash كـ Tag للحاوية لتسهيل تتبع الإصدارات
-  TAG: ${{ github.sha }}
+  AWS_REGION: eu-west-1
+  # ضع هنا الـ ARN الخاص بالـ IAM Role الذي تم إنشاؤه في AWS لـ GitHub OIDC
+  AWS_ROLE_TO_ASSUME: arn:aws:iam::123456789012:role/github-actions-ecr-role
+  ECR_REPOSITORY: ticketforge/ticket-service
 
 jobs:
-  build-test-scan-push:
+  build-scan-push-to-aws:
     runs-on: ubuntu-latest
-    
-    # تحديد مسار العمل الافتراضي لهذا الـ Job
     defaults:
       run:
         working-directory: ./ticket-service
@@ -37,44 +33,46 @@ jobs:
       with:
         java-version: '21'
         distribution: 'temurin'
-        cache: maven # لتسريع عملية البناء في المرات القادمة
+        cache: maven
 
-    - name: 3. Run Maven Tests & Build
-      run: mvn clean package -DskipTests # في بيئة حقيقية نحذف skipTests لضمان مرور الـ Unit Tests
+    - name: 3. Build with Maven
+      run: mvn clean package -DskipTests
 
-    - name: 4. Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: 5. Build Docker Image (Local Load)
-      uses: docker/build-push-action@v5
+    # --- بداية سحر الـ AWS Cloud Connection ---
+    
+    - name: 4. Configure AWS Credentials (via OIDC)
+      uses: aws-actions/configure-aws-credentials@v4
       with:
-        context: ./ticket-service
-        load: true # نحتفظ بالصورة محلياً لغرض الفحص الأمني قبل الرفع
-        tags: ${{ env.IMAGE_NAME }}:${{ env.TAG }}
+        role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+        aws-region: ${{ env.AWS_REGION }}
+        audience: sts.amazonaws.com
 
-    - name: 6. Run Trivy Vulnerability Scanner
+    - name: 5. Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: 6. Build and Tag Docker Image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG .
+        docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest .
+        # تصدير اسم الصورة الكامل للخطوة القادمة (الفحص الأمني)
+        echo "FULL_IMAGE_NAME=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG" >> $GITHUB_ENV
+
+    - name: 7. Trivy Security Scan (Local Check)
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: '${{ env.IMAGE_NAME }}:${{ env.TAG }}'
+        image-ref: ${{ env.FULL_IMAGE_NAME }}
         format: 'table'
-        exit-code: '1' # إفشال الـ Pipeline فوراً إذا تم إيجاد ثغرات
-        ignore-unfixed: true
-        vuln-type: 'os,library'
+        exit-code: '1'
         severity: 'CRITICAL,HIGH'
 
-    - name: 7. Login to Docker Hub
-      if: success() # لا يتم تسجيل الدخول إلا إذا نجح فحص Trivy
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: 8. Push Secure Image to Docker Hub
-      if: success()
-      uses: docker/build-push-action@v5
-      with:
-        context: ./ticket-service
-        push: true
-        tags: |
-          ${{ env.IMAGE_NAME }}:${{ env.TAG }}
-          ${{ env.IMAGE_NAME }}:latest
+    - name: 8. Push Secure Image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
+        docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
