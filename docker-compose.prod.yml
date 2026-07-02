@@ -1,4 +1,4 @@
-name: ticketforge-infra
+name: ticketforge-prod
 
 networks:
   ticketforge-net:
@@ -6,15 +6,11 @@ networks:
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
   kafka_data:
-    driver: local
 
 services:
 
-  # 1. Database: PostgreSQL (For Ticket Service Transactions)
   postgres:
     image: postgres:16
     container_name: tf-postgres
@@ -23,8 +19,6 @@ services:
       POSTGRES_USER: ticket_user
       POSTGRES_PASSWORD: ticket_password_2026
       POSTGRES_DB: ticketforge_db
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -35,14 +29,11 @@ services:
       timeout: 5s
       retries: 5
 
-  # 2. Cache & Distributed Lock: Redis
   redis:
     image: redis:7-alpine
     container_name: tf-redis
     restart: always
     command: redis-server --appendonly yes --requirepass redis_password_2026
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -53,13 +44,10 @@ services:
       timeout: 5s
       retries: 5
 
-  # 3. Message Broker: Apache Kafka (KRaft Mode - No Zookeeper needed!)
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: tf-kafka
     restart: always
-    ports:
-      - "9092:9092"
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
@@ -84,19 +72,76 @@ services:
       timeout: 5s
       retries: 5
 
-  # 4. Kafka UI: For Visual Monitoring of Topics and Events
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: tf-kafka-ui
+  api-gateway:
+    build:
+      context: ./apigateway
+      dockerfile: Dockerfile
+    container_name: tf-api-gateway
     restart: always
     ports:
-      - "8080:8080"
+      - "8000:8000"
     networks:
       - ticketforge-net
     environment:
-      DYNAMIC_CONFIG_ENABLED: 'true'
-      KAFKA_CLUSTERS_0_NAME: 'ticketforge-cluster'
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: 'kafka:29092'
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: redis_password_2026
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  ticket-service:
+    build:
+      context: ./ticket-service
+      dockerfile: Dockerfile
+    container_name: tf-ticket-service
+    restart: always
+    ports:
+      - "8081:8081"
+    networks:
+      - ticketforge-net
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticketforge_db
+      SPRING_DATASOURCE_USERNAME: ticket_user
+      SPRING_DATASOURCE_PASSWORD: ticket_password_2026
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: redis_password_2026
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: tf-payment-service
+    restart: always
+    ports:
+      - "8082:8082"
+    networks:
+      - ticketforge-net
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: tf-notification-service
+    restart: always
+    ports:
+      - "8083:8083"
+    networks:
+      - ticketforge-net
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       kafka:
         condition: service_healthy

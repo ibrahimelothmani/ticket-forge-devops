@@ -21,7 +21,7 @@ spec:
             - containerPort: 3000
           env:
             - name: GF_SECURITY_ADMIN_PASSWORD
-              value: "admin_password_2026" # الباسورد الرئيسي للوحة التحكم
+              value: "ticketforge2026" # الباسورد الرئيسي للوحة التحكم
           resources:
             limits:
               memory: "512Mi"

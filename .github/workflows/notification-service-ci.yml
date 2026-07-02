@@ -1,18 +1,17 @@
-name: Payment Service DevSecOps CI
+name: Notification Service DevSecOps CI
 
 on:
   push:
     branches: [ "master" ]
     paths:
-      - 'payment-service/**' # يشتغل فقط إذا لمسنا كود الدفع
+      - 'notification-service/**'
   pull_request:
     branches: [ "master" ]
     paths:
-      - 'payment-service/**'
+      - 'notification-service/**'
 
 env:
-  # وضعنا اسم شركتك Future Eagle IoT كـ Namespace في DockerHub
-  IMAGE_NAME: future-eagle-iot/payment-service 
+  IMAGE_NAME: future-eagle-iot/notification-service
   TAG: ${{ github.sha }}
 
 jobs:
@@ -20,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./payment-service
+        working-directory: ./notification-service
 
     steps:
     - name: 1. Checkout Code
@@ -44,7 +43,7 @@ jobs:
     - name: 5. Build Image locally for Scanning
       uses: docker/build-push-action@v5
       with:
-        context: ./payment-service
+        context: ./notification-service
         load: true
         tags: ${{ env.IMAGE_NAME }}:${{ env.TAG }}
 
@@ -67,7 +66,7 @@ jobs:
       if: success()
       uses: docker/build-push-action@v5
       with:
-        context: ./payment-service
+        context: ./notification-service
         push: true
         tags: |
           ${{ env.IMAGE_NAME }}:${{ env.TAG }}

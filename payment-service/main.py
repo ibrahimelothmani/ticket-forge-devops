@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from fastapi import FastAPI
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -12,7 +13,7 @@ app = FastAPI(title="TicketForge Payment Service")
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
-KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 CONSUME_TOPIC = "ticket.reserved"
 PRODUCER_CONFIRMED_TOPIC = "payment.confirmed"
 PRODUCER_FAILED_TOPIC = "payment.failed"
