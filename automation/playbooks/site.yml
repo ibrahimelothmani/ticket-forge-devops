@@ -1,28 +1,28 @@
 ---
-- name: Prepare Infrastructure Nodes for TicketForge High Load
-  hosts: tag_Environment_production # استهداف سيرفرات الإنتاج ديناميكياً
+- name: Prepare infrastructure nodes for TicketForge
+  hosts: "{{ target_hosts | default('ticketforge') }}"
   become: true
   gather_facts: true
 
   tasks:
-    - name: Ensure baseline system security packages are up-to-date
+    - name: Ensure baseline system packages are up-to-date
       apt:
         update_cache: true
         upgrade: dist
         cache_valid_time: 3600
 
-    - name: Optimize Linux Kernel for High TCP Concurrency (Tuning OS)
+    - name: Optimize Linux Kernel for high TCP concurrency
       sysctl:
         name: "{{ item.key }}"
         value: "{{ item.value }}"
         state: present
         reload: true
       with_items:
-        - { key: 'net.core.somaxconn', value: '1024' } # زيادة طابور الاتصالات المنتظرة
+        - { key: 'net.core.somaxconn', value: '1024' }
         - { key: 'net.ipv4.tcp_max_syn_backlog', value: '2048' }
-        - { key: 'fs.file-max', value: '2097152' } # رفع حد الملفات المفتوحة للـ Microservices
+        - { key: 'fs.file-max', value: '2097152' }
 
-    - name: Ensure Docker Engine is running safely
+    - name: Ensure Docker Engine is running
       systemd:
         name: docker
         state: started
