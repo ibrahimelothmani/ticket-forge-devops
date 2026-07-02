@@ -12,19 +12,15 @@ logger = logging.getLogger("PaymentService")
 
 app = FastAPI(title="TicketForge Payment Service")
 
-# الإعدادات الخاصة بالـ Kafka Broker
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
 KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
 CONSUME_TOPIC = "ticket.reserved"
 PRODUCER_CONFIRMED_TOPIC = "payment.confirmed"
 PRODUCER_FAILED_TOPIC = "payment.failed"
 
 
-@app.on_event("startup")
-async def startup_event():
-    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
-    logger.info("🚀 Prometheus metrics endpoint is now available at /metrics")
 
-    
 async def consume_ticket_reservations():
     """
     Background worker للاستماع للأحداث القادمة من ticket-service
@@ -76,8 +72,7 @@ async def consume_ticket_reservations():
         await producer.stop()
 
 @app.on_event("startup")
-async def startup_event():
-    # إطلاق الـ Kafka Consumer في الخلفية عند تشغيل السيرفيس مباشرة
+async def startup():
     asyncio.create_task(consume_ticket_reservations())
 
 @app.get("/health")

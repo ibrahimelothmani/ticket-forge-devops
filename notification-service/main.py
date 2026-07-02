@@ -4,7 +4,7 @@ import logging
 import os
 from fastapi import FastAPI
 from aiokafka import AIOKafkaConsumer
-from fpdf2 import FPDF
+from fpdf import FPDF
 from prometheus_fastapi_instrumentator import Instrumentator
 
 
@@ -13,15 +13,13 @@ logger = logging.getLogger("NotificationService")
 
 app = FastAPI(title="TicketForge Notification & PDF Service")
 
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
 KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
 CONFIRMED_TOPIC = "payment.confirmed"
 
-@app.on_event("startup")
-async def startup_event():
-    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
-    logger.info("🚀 Prometheus metrics endpoint is now available at /metrics")
 
-    
+
 def generate_ticket_pdf(order_id, user_id, seat_number, match_id):
     """
     دالة لتوليد ملف PDF حقيقي للتذكرة وحفظه محلياً داخل الحاوية
@@ -83,7 +81,7 @@ async def consume_payment_confirmations():
         await consumer.stop()
 
 @app.on_event("startup")
-async def startup_event():
+async def startup():
     asyncio.create_task(consume_payment_confirmations())
 
 @app.get("/health")
