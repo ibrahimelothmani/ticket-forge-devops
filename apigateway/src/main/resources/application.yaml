@@ -13,7 +13,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: ticket2026
+      password: redis_password_2026
 
   cloud:
     gateway:
