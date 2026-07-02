@@ -2,7 +2,7 @@ name: API Gateway CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
     paths:
       - 'apigateway/**'
 

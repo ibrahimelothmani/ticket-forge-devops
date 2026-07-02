@@ -2,7 +2,7 @@ name: Ticket Service CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
     paths:
       - 'ticket-service/**'
 
